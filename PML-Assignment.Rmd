@@ -1,0 +1,89 @@
+---
+title: "Untitled"
+author: "Aravind"
+date: "25 October 2018"
+output: html_document
+---
+Setting Directory and loading packages
+```{r}
+setwd("C:/Users/Sushant/Desktop")
+library(lattice)
+library(ggplot2)
+library(caret)
+library(knitr)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(rattle)
+library(corrplot)
+set.seed(11111)
+```
+??
+Read the datasets.the dataset has many NA values, clean the dataset while loading for these values
+```{r}
+testing <- read.csv("pml-testing (1).csv",na.strings = c("NA", "#DIV/0!", ""))
+training  <- read.csv("pml-training (1).csv",na.strings = c("NA", "#DIV/0!", ""))
+```
+The first few columns of the data are irrelevant for prediction,so remove them from the dataset.Clean the data for columns which have NA's mostly.I have taken a cutoff of 95% NA's.Also remove features which are not in the testing set.
+```{r}
+training <- training[,-c(1:6)]
+testing <- testing[,-c(1:6)]
+NZV <- nearZeroVar(training)
+training <- training[, -NZV]
+testing  <- testing[, -NZV]
+AllNA    <- sapply(training, function(x) mean(is.na(x))) > 0.95
+training <- training[, AllNA==FALSE]
+testing  <- testing[, AllNA==FALSE]
+
+```
+Create Data partiotion for the dataset with a probability of 0.65
+```{r}
+inTrain <- createDataPartition(training$classe, p=0.65, list=FALSE)
+training <- training[inTrain,]
+Validationset <- training[-inTrain,]
+```
+Decision tree method.Predition using decision tree method and produce confusion matrix. If there are elements with na value,include na.action to exclude them. Convert it as a table when the datasets are not equal.Here they are equal, but at times it will be helpful 
+
+```{r}
+dtmod <- train(classe ~., method='rpart', data=training,na.action = na.pass)
+Predictiondt <- predict(dtmod, Validationset,na.action = na.pass)
+confusionMatrix(table(Validationset$classe, Predictiondt))
+```
+Plot the decision tree using rpart.plot
+```{r, eval=FALSE, include=FALSE}
+rpart.plot(decisionTreeMod$finalModel)
+```
+
+The stats show that he accuracy is around 50%.So this is not an ideal model for prediction.
+
+Random forest method
+```{r}
+rfMod <- randomForest(classe ~., data=training, ntree=1000,na.action = na.pass)
+Predictionrf <- predict(rfMod, Validationset)
+confusionMatrix(table(Validationset$classe, Predictionrf))
+```
+
+The accuracy is quite high using this model.
+
+General Boosting model
+```{r}
+Modgbm <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modFitGBM  <- train(classe ~ ., data=training, method = "gbm",
+                    trControl = Modgbm, verbose = FALSE)
+PredictionGBM <- predict(modFitGBM, newdata=Validationset)
+confusionMatrix(PredictionGBM, Validationset$classe)
+```
+The accuracy tends to be around 97%.
+
+Therefore we can conclude that randomforest method is an ideal model for prediction.We are going to use randon forest method on the testing set
+
+```{r}
+PredictionRF <- predict(rfMod, testing, type = "class")
+PredictionRF
+```
+
+Conclusion : The random forest method has high level of accuracy and the results produced from using rf method are likely to be correct
+
+
+
+
